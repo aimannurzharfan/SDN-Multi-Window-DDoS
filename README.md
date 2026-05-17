@@ -1,15 +1,31 @@
-# Multi-Window Entropy DDoS Detection on Ryu SDN
+# DDoS Detection System for Software-Defined Networks
 
-Implementation of a multi-timescale Shannon entropy detection system with
-Online Adaptive Kalman Filter (OAKF) thresholds for TCP SYN flood detection
-on the Ryu SDN controller.
+A real-time TCP SYN flood detector running on the Ryu SDN controller, evaluated in a Mininet testbed against the CIC-DDoS2019 benchmark.
 
-## Components
-- Custom Mininet topology: 5 switches, 20 hosts (15 legitimate, 5 attackers)
-- Three observation windows: 5s, 30s, 120s
-- Detection signals: Shannon entropy, IP Revisit Ratio, SYN/ACK ratio
-- Adaptive thresholds via OAKF on each signal-window pair
-- Evaluation: 30-chunk replay of CIC-DDoS2019 PCAP-03-11 (SYN flood subset)
+Developed as part of an undergraduate thesis project. Full methodology and results will be published after thesis examination.
 
-## Environment
-See `docs/environment_versions.txt`.
+---
+
+## Stack
+
+- **Controller:** Ryu (OpenFlow 1.3)
+- **Emulator:** Mininet with Open vSwitch
+- **Language:** Python 3.8
+- **Traffic tools:** tcpreplay, iperf3, hping3
+- **Dataset:** CIC-DDoS2019
+
+Tested on Ubuntu 20.04 LTS inside Oracle VirtualBox.
+
+---
+
+## Status
+
+Implementation complete, evaluation in progress.
+
+Results and full design documentation will be released alongside the thesis after examination.
+
+---
+
+## License
+
+MIT License. See `LICENSE`.

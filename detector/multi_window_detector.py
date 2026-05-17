@@ -2,18 +2,21 @@
 """
 Multi-window DDoS detector for Ryu SDN controller.
 
-per-window counters across 5s / 30s / 120s timescales.
+computes three detection signals per window boundary.
 
-Each window keeps its own rolling state:
-  - total packet count
-  - unique source IPs (hash set)
-  - SYN count
-  - SYN-ACK count
+Signals:
+  1. Shannon entropy on source IP distribution (bits)
+  2. IP Revisit Ratio = total_packets / unique_source_ips
+  3. SYN/ACK Ratio    = syn_count / synack_count
 
-A background greenlet per window evaluates and resets the window
-every duration_s seconds.
+Per Chapter 3 design:
+  - Mechanism 1 (anomaly):    entropy deviation OR revisit ratio collapse
+  - Mechanism 2 (validation): SYN/ACK ratio anomaly
+  - Alert fires only when BOTH mechanisms fire in the same window
+  (OAKF adaptive thresholds added in Stage 6; this stage just emits values.)
 """
 
+import math
 import time
 from collections import defaultdict
 
@@ -25,12 +28,30 @@ from ryu.lib.packet import packet, ipv4, tcp
 from ryu.lib import hub
 
 
-# TCP flag bits (from RFC 9293)
-TCP_FIN = 0x01
+# TCP flag bits
 TCP_SYN = 0x02
-TCP_RST = 0x04
-TCP_PSH = 0x08
 TCP_ACK = 0x10
+
+# Cap synack_ratio at this value when synack_count == 0, to keep it finite
+# (an infinity in logs and Kalman filters is just trouble for no benefit).
+SYNACK_RATIO_CAP = 10000.0
+
+
+def shannon_entropy(counts: dict) -> float:
+    """
+    Compute Shannon entropy in bits over a {item: count} distribution.
+
+    H(X) = -sum( p_i * log2(p_i) )   for all i with count > 0
+    """
+    total = sum(counts.values())
+    if total == 0:
+        return 0.0
+    entropy = 0.0
+    for c in counts.values():
+        if c > 0:
+            p = c / total
+            entropy -= p * math.log2(p)
+    return entropy
 
 
 class WindowState:
@@ -58,15 +79,34 @@ class WindowState:
         elif is_syn and is_ack:
             self.synack_count += 1
 
-    def snapshot(self) -> dict:
+    def compute_signals(self) -> dict:
+        """Compute entropy, IP Revisit Ratio, SYN/ACK ratio."""
+        unique_ips = len(self.src_ip_counts)
+
+        entropy = shannon_entropy(self.src_ip_counts)
+
+        if unique_ips > 0:
+            revisit_ratio = self.packet_count / unique_ips
+        else:
+            revisit_ratio = 0.0
+
+        if self.synack_count > 0:
+            synack_ratio = self.syn_count / self.synack_count
+        elif self.syn_count > 0:
+            synack_ratio = SYNACK_RATIO_CAP
+        else:
+            synack_ratio = 0.0
+
         return {
             "window": self.name,
-            "duration_s": self.duration_s,
             "elapsed_s": round(time.time() - self.start_time, 2),
             "packets": self.packet_count,
-            "unique_ips": len(self.src_ip_counts),
+            "unique_ips": unique_ips,
             "syn": self.syn_count,
             "synack": self.synack_count,
+            "entropy": entropy,
+            "revisit_ratio": revisit_ratio,
+            "synack_ratio": synack_ratio,
         }
 
 
@@ -81,28 +121,23 @@ class MultiWindowDetector(app_manager.RyuApp):
             "120s": WindowState("120s", 120),
         }
         self.logger.info(
-            "MultiWindowDetector initialised (Stage 4) with windows: %s",
-            ", ".join(f"{w.name}={w.duration_s}s" for w in self.windows.values()),
+            "MultiWindowDetector initialised (Stage 5) "
+            "with 3 signals x 3 windows = 9 measurements per cycle"
         )
 
-        # Launch one background greenlet per window
         for name in self.windows:
             hub.spawn(self._window_monitor, name)
 
     def _window_monitor(self, window_name: str):
-        """
-        Background greenlet that sleeps for the window duration, then
-        snapshots and resets the window. Uses Ryu's hub (eventlet greenlets)
-        rather than OS threads so it cooperates with the Ryu event loop.
-        """
         win = self.windows[window_name]
         while True:
             hub.sleep(win.duration_s)
-            snap = win.snapshot()
+            sig = win.compute_signals()
             self.logger.info(
-                "[%-4s] pkts=%-7d uniq_ip=%-6d syn=%-7d synack=%-6d  elapsed=%.1fs",
-                snap["window"], snap["packets"], snap["unique_ips"],
-                snap["syn"], snap["synack"], snap["elapsed_s"],
+                "[%-4s] pkts=%-7d uniq=%-6d  "
+                "H=%.3f  revisit=%.2f  synack_ratio=%.2f",
+                sig["window"], sig["packets"], sig["unique_ips"],
+                sig["entropy"], sig["revisit_ratio"], sig["synack_ratio"],
             )
             win.reset()
 
@@ -128,11 +163,9 @@ class MultiWindowDetector(app_manager.RyuApp):
         tcp_pkt = pkt.get_protocol(tcp.tcp)
 
         if ip and tcp_pkt:
-            # Hot path: update all three windows in O(1) each
             for win in self.windows.values():
                 win.update(ip.src, tcp_pkt.bits)
 
-        # Flood the packet so the network keeps working
         dp = msg.datapath
         ofp = dp.ofproto
         parser = dp.ofproto_parser

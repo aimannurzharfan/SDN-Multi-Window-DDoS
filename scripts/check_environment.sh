@@ -9,12 +9,6 @@ echo ""
 echo "--- Python ---"
 python3 --version
 echo ""
-echo "--- Node.js (for Claude Code) ---"
-node --version
-echo ""
-echo "--- Claude Code ---"
-claude --version 2>/dev/null || echo "Claude Code not on PATH"
-echo ""
 echo "--- VS Code ---"
 code --version 2>/dev/null | head -1
 echo ""

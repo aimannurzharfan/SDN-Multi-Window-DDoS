@@ -8,16 +8,16 @@ ryu-env/
 venv/
 *.egg-info/
 
-# Datasets and large files
-datasets/*.pcap
-datasets/*.pcapng
-chunks/*.pcap
-chunks/*.pcapng
+# Datasets and large files (exclude entire directories — files may lack .pcap extension)
+datasets/
+chunks/
 *.pcap
 *.pcapng
 
-# Results and logs (you can choose to track these or not)
+# Results and logs
 logs/*.log
+logs/*.csv
+logs/*.html
 results/*.tmp
 
 # OS and editor

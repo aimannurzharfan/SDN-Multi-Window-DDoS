@@ -58,7 +58,7 @@ DETECTOR_PY  = os.path.join(DETECTOR_DIR, "multi_window_detector_v2.py")
 
 CALIBRATION_SECS  = float(os.environ.get("CALIBRATION_SECS", 150))
 ATTACK_SECS       = float(os.environ.get("ATTACK_SECS", 90))
-POST_ATTACK_SECS  = 35   # allow last 30 s window cycle to fire
+POST_ATTACK_SECS  = int(os.environ.get("POST_ATTACK_SECS", 35))
 RYU_STARTUP_SECS  = 12   # time for Ryu to bind port 6653
 TOPO_SETTLE_SECS  = 15   # time for all OF handshakes to complete
 
@@ -213,10 +213,15 @@ def inject_attack(net, chunk_id: int) -> float:
     """
     Run tcpreplay inside h16's network namespace on h16-eth0.
     Returns: wall-clock time the attack started.
+    Set SDN_ATTACK_PCAP to override the default chunk-based pcap path.
     """
-    chunk_file = os.path.join(CHUNKS_DIR, f"chunk_{chunk_id:05d}.pcap")
+    custom_pcap = os.environ.get("SDN_ATTACK_PCAP", "").strip()
+    if custom_pcap:
+        chunk_file = custom_pcap
+    else:
+        chunk_file = os.path.join(CHUNKS_DIR, f"chunk_{chunk_id:05d}.pcap")
     if not os.path.isfile(chunk_file):
-        die(f"Chunk PCAP not found: {chunk_file}")
+        die(f"Attack PCAP not found: {chunk_file}")
 
     h16 = net.get("h16")
     log(f"ATTACK START: tcpreplay {chunk_file} on h16-eth0 at 5000 pps ...")
@@ -240,7 +245,6 @@ def main():
     if os.geteuid() != 0:
         die("Must run as root: sudo python3 experiment.py ...")
 
-    # -- Parse arguments --
     if len(sys.argv) < 2:
         print(f"Usage: sudo python3 {sys.argv[0]} <chunk_id> [MODE] [run_id]")
         sys.exit(1)

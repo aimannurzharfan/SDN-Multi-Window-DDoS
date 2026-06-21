@@ -137,6 +137,13 @@ python3 ~/sdn-thesis/analyze_long_test.py
 
 ---
 
+## Cross-dataset validation (BOUN)
+
+To reproduce the spoofed multi-source evaluation, check out the `boun-validation`
+branch, which contains the offline BOUN DDoS evaluation and its run instructions.
+
+---
+
 ## Metrics and figures
 
 ```bash

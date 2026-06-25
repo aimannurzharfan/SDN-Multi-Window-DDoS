@@ -31,7 +31,7 @@ The OAKF skips zero-packet windows without updating filter state, and withholds 
 | No dual-mech | 541/573 (94.4%) | 94.5% ± 8.7% | 611/1277 (47.8%) |
 | Fixed threshold | 547/574 (95.3%) | 95.3% ± 5.0% | 0/1291 (0.000%) |
 
-Processing latency (5 s window): **0.115 ms/cycle** on a commodity VM.
+Processing latency (5 s window): **0.111 ms/cycle** on a commodity VM.
 
 **Multi-window ablation:** removing the 30 s and 120 s windows raises per-chunk SD from 4.5% to 7.6%, confirming the longer windows stabilise detection variance.
 

@@ -1,4 +1,5 @@
-# Multi-timescale SYN-flood detector for Software-Defined Networks using an Online Adaptive Kalman Filter (OAKF). Built on Ryu (OpenFlow 1.3) and Mininet. Thesis project — Universiti Teknologi Malaysia, 2026.
+# LIGHTWEIGHT TCP SYN FLOOD DETECTION IN SOFTWARE-DEFINED NETWORKS USING A MULTI-WINDOW, DUAL-MECHANISM APPROACH
+Thesis project — Universiti Teknologi Malaysia, 2026.
 
 ---
 

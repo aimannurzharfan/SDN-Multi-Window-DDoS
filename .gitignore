@@ -26,8 +26,5 @@ results/*.tmp
 *.swp
 *.swo
 
-# Claude
-.claude/
-
 # Archive (local holding area, not for publication)
 _archive/

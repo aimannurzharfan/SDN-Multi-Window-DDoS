@@ -1,0 +1,94 @@
+========================================================================
+BOUN TCP DATASET PROBE  (read-only; no Mininet/Ryu)
+========================================================================
+File   : /home/sdnuser/sdn-thesis/datasets/boun/BOUN_DDoS dataset/BOUN_TCP_Anon.csv
+Format : packet-level CSV (NOT a .pcap). One row per frame.
+Size   : 955 MB   Rows(pkts): 9335605
+
+--- SUMMARY TABLE ---
+metric                                 value
+------------------------------------------------------------------------
+capture_duration_s                     482.663
+total_packets                          9335605
+baseline_pureSYN_pps (0-60s med/mean)  92.0 / 95.0
+elevation_threshold_pps                460.0
+attack_start_s (empirical)             80
+attack_end_s (empirical)               402
+attack_span_s (end-start, incl gaps)   322
+pre_attack_background_s                80
+attack_mean_SYN_pps (within pulses)    1529.8
+attack_peak_SYN_pps                    2203
+total_pureSYN                          181840
+total_SYNACK                           39370
+total_bareACK                          5858586
+SYN:SYNACK ratio (overall)             4.619
+attack_pureSYN                         136149
+attack_SYNACK                          8034
+attack_bareACK                         905194
+SYN:SYNACK ratio (attack window)       16.947
+unique_src_ip_overall                  137521
+
+--- DETECTED PULSES (contiguous elevated SYN/s, gap<=3s merged) ---
+ #  start_s    end_s  dur_s  peakSYN/s
+ 1       80      101     21       1024
+ 2      180      202     22       1427
+ 3      280      300     20       1948
+ 4      380      402     22       2203
+
+Cross-check vs documented Erhan&Anarim 2020 Table 1 (rate, start, end):
+    1000 pps       80.22 -    102.20   dur= 22.0s
+    1500 pps      180.17 -    203.08   dur= 22.9s
+    2000 pps      279.97 -    301.79   dur= 21.8s
+    2500 pps      380.11 -    402.36   dur= 22.2s
+
+--- SECOND PASS: attack-window src/dst + direction ---
+unique_src_ip_attack_window            131066
+unique_src_ip_overall                  137521
+attack_window_total_pkts               1687488
+Top 3 destination IPs in attack window (victim):
+   216.58.208.111           127255    7.5%
+   10.50.199.86             124901    7.4%
+   10.50.209.134             77135    4.6%
+
+Directionality:
+   total SYN-ACK (server->client) present overall = 39370
+   total SYN-ACK during attack window             = 8034
+   => bidirectional capture
+
+========================================================================
+FOUR DECISION QUESTIONS
+========================================================================
+a. attack_duration_s >= 120 ?
+   longest single pulse       = 22s
+   full elevated span (80-end)= 322s (but contains attack-free gaps)
+   ANSWER: single sustained attack NO (max pulse 22s < 120); contiguous 120s window only possible by treating full span as one event.
+
+b. pre_attack_background_s >= 150 ?
+   pre_attack_background_s = 80s
+   ANSWER: NO (80s < 150)
+
+c. Real SYN-ACK packets during attack window ?
+   attack_SYNACK = 8034
+   ANSWER: YES
+
+d. Attack source IPs randomised/spoofed ?
+   unique_src_ip attack window = 131066  vs baseline (0-60s) hosts
+   ANSWER: (see ratio vs baseline; high unique count => spoofed)
+
+========================================================================
+ADDENDUM: spoofing evidence (baseline vs attack unique-src) + per-pulse victim
+========================================================================
+pre-attack (0-80s): 1,941,789 pkts, 5,060 unique src IPs  (~63 IP/s)
+
+Pulse 1 [ 80-101s]  389,505 pkts  uniq_src=21,689  (~1033 IP/s, 0.06 uniq/pkt)
+    victim 216.58.208.111  8.0%   10.50.209.134  5.9%
+Pulse 2 [180-202s]  456,655 pkts  uniq_src=30,278  (~1376 IP/s, 0.07 uniq/pkt)
+    victim 216.58.208.111  7.2%   10.50.199.86   5.9%
+Pulse 3 [280-300s]  384,361 pkts  uniq_src=38,325  (~1916 IP/s, 0.10 uniq/pkt)
+    victim 10.50.199.86    9.3%   216.58.208.111 8.6%
+Pulse 4 [380-402s]  456,967 pkts  uniq_src=46,255  (~2102 IP/s, 0.10 uniq/pkt)
+    victim 10.50.199.86    9.5%   216.58.208.111 6.6%
+
+d. SPOOFED: unique-src RATE jumps 16-33x (63 IP/s baseline -> 1033-2102 IP/s
+   in-pulse); 0.06-0.10 unique-src-per-packet means each "source" sends
+   ~10-16 pkts => randomised/spoofed source IPs. ANSWER: YES.

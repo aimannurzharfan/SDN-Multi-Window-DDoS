@@ -1,20 +1,20 @@
-# Multi-Window SYN Flood Detection for SDN
+# BOUN Cross-Dataset Validation and Drift Experiment
 
-A lightweight, controller-resident detector for TCP SYN floods in Software-Defined Networking. It runs on the Ryu controller and uses no machine-learning inference.
+Live validation of the multi-window SYN flood detector on the spoofed, multi-source BOUN DDoS dataset, and a controlled non-stationary baseline experiment. This branch extends the CIC-DDoS2019 detector on `main` to the spoofed source profile and to a drifting legitimate baseline. The detection logic is unchanged; only the traffic path and the analysis differ.
 
-## Approach
-Three concurrent observation windows (5, 30, and 120 seconds) feed two confirmation mechanisms. Mechanism 1 reads source behaviour through bidirectional Shannon entropy and the IP revisit rate. Mechanism 2 reads protocol behaviour through the SYN/ACK ratio. An alert requires both to agree in the same window. An Online Adaptive Kalman Filter sets each threshold from the live baseline, so no threshold is hand-tuned.
+## What this branch adds
+Live replay of the BOUN spoofed flood through Mininet and Ryu, with a dataplane forwarding rule that keeps established-connection traffic off the controller so only new flows reach it. And a controlled drift experiment: a rising legitimate baseline with attacks injected across it, comparing the adaptive threshold against a fixed threshold swept over its full multiplier range.
 
-## Layout
-- `multi_window_detector_v2.py` — Ryu detection application (windows, OAKF, dual-mechanism, ablation modes).
-- `oakf.py` — Online Adaptive Kalman Filter.
-- `tree_5sw_20h.py` — Mininet topology, five switches and twenty hosts.
-- `experiment.py` — CIC-DDoS2019 trial lifecycle.
-- `compute_metrics.py` — aggregates detection rate, false positive rate, and processing time.
-- `chunks/` — CIC-DDoS2019 SYN-flood replay chunks.
+## Key scripts
+- `build_boun_pcap.py` — reconstructs a replayable PCAP from the BOUN CSV.
+- `experiment_boun.py` — live BOUN replay harness, forwarding offload and CPU sampling.
+- `recompute_boun_labels.py` — pulse-aware window labelling.
+- `analyze_boun_batch.py`, `run_boun_batch.py` — batch analysis and driver.
+- `drift_experiment.py`, `drift_live_gen.py`, `experiment_drift_live.py` — drift generation and the live drift harness.
+- `fixed_sweep.py`, `analyze_drift_live.py`, `run_drift_live_batch.sh` — the fixed-threshold sweep, analysis, and batch driver.
 
-## Running a trial
-Activate the Ryu virtualenv, then run `experiment.py <chunk_id> <MODE> <run_id>`, where MODE is one of FULL, NO_MULTI_WINDOW, NO_DUAL_MECH, FIXED_THRESHOLD. Aggregate with `compute_metrics.py`.
+## Running
+Build the capture with `build_boun_pcap.py`, then replay it live with `experiment_boun.py`. Run the drift experiment with `run_drift_live_batch.sh`.
 
-## Datasets
-This branch covers the single-source CIC-DDoS2019 flood. The spoofed multi-source cross-dataset validation on the BOUN dataset and the non-stationary drift experiment are on the `boun` branch.
+## Relation to main
+The detector and OAKF are shared with `main`. This branch changes only the traffic path and the analysis, not the detection.

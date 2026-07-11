@@ -1,0 +1,180 @@
+==============================================================================
+BOUN LIVE-REPLAY — PAPER METRICS  (CIC-style forwarding offload applied)
+produced: 2026-07-10 03:51:11   mode=NO_MULTI_WINDOW
+==============================================================================
+
+[1] BOUN CHARACTERISATION (confirmed from datasets/boun/boun_tcp.pcap)
+    TCP frames (pcap)          : 6,090,873   (capinfos: 6,090k)
+    capture span               : 482.7 s   (capinfos: 482.662757 s)
+    handshake classes (build-verified, whole capture):
+        pureSYN 181,719 | SYN-ACK 39,369 | bareACK 5,858,488
+    pulses (Erhan & Anarim 2020, Table 1) — start/end s @ rate:
+          80.22- 102.20 s  @ 1000 pps
+         180.17- 203.08 s  @ 1500 pps
+         279.97- 301.79 s  @ 2000 pps
+         380.11- 402.36 s  @ 2500 pps
+    in-attack (offline windows_5s, >=50% overlap attack windows):
+        SYN:SYN-ACK ~16.7 ; ~133k spoofed sources (sum of per-5s unique src)
+        offline synack_v1 during pulses: 8.66-34.56 (mean 17.62)
+
+[2] DETECTION PER WINDOW (corrected stats-based wall->BOUN mapping)
+     window  attackW   det        DR  legitW   FP       FPR  M1@atk  M2@atk
+         5s       24    24   100.00%      77   15    19.48%      24      24
+        30s        0     0       n/a       0    0       n/a       0       0
+       120s        0     0       n/a       0    0       n/a       0       0
+
+[3] PROCESSING TIME (mean per window cycle)
+         5s : 0.154 ms
+        30s : 0.000 ms
+       120s : 0.000 ms
+
+[4] CONTROLLER CPU (Ryu process, detector ON)
+    mean / peak : 61.1% / 100.9%  (system 46.6% / 75.3%)
+    NOTE: detector-OFF no-op baseline at native rate still required for the
+    A/B (Table 4.2 analog) — run in the batch, not in this single smoke test.
+
+[5] REPLAY FIDELITY (systems observation)
+    tcpreplay sent 6,090,873 pkts in 630.0 s (pcap span 482.7 s)
+    achieved avg rate 9,667 pps ; BEHIND by +147.4 s
+    tcpreplay failed packets: 0
+
+[6] SIGNAL TRACES DURING PULSES vs BACKGROUND (5s window)
+    mean packet_in rate  pulse=3,459 pkt/s (n=24)  gap=1,619 pkt/s (n=77)
+    per-pulse M2 recovery (5s attack windows):
+         rate   n meanSynackRatio  pooledSYN/SA   M1   M2  alert
+         1000   5           11.83         11.79    5    5      5
+         1500   6           12.69         12.37    6    6      6
+         2000   6           26.57         23.40    6    6      6
+         2500   7           22.77         21.17    7    7      7
+==============================================================================
+
+==============================================================================
+FINAL BATCH APPENDIX (native rate x1; FULLx10 FIXEDx10 NODUALx5 NOMULTIx5 NOOPx3)
+produced: 2026-07-10 03:56:06   K(SYN/5s)=5000
+==============================================================================
+DR/FPR are mean±SD across repeats. primary label = pulse-overlap OR syn>=K;
+nominal = pulse-schedule only (boundary excluded). 120s excluded (under-warmed).
+  FULL 5s: DR_prim  80.34%±2.28%  FPR_prim   0.00%  DR_nom 100.00%  FPR_nom  17.91%
+  FULL 30s: DR_prim  30.00%±2.87%  FPR_prim   n/a    DR_nom 100.00%  FPR_nom   3.11%
+  FULL_HYST 5s BOUN DR: base 80.3% -> N1 88.2% -> N2 92.8% ; CIC 5s FPR unchanged at 0.142% => KEEP
+  CPU native rate: ON(FULL) 61.4% mean / 101.1% peak ; OFF(NOOP) 53.8% / 100.9% ; detector adds +7.6 pts
+  proc/window: 5s 0.153ms  30s 0.600ms ; replay stretch 1.30x
+
+==============================================================================
+LOG-ONLY RE-SCORES (pre-rewrite lock) — produced 2026-07-10
+==============================================================================
+
+PHASE 1 — BOUN fixed-threshold multiplier sweep (corrected band |v-mean|>m*sigma,
+          10 FULL runs, 5s, primary label pulse-overlap OR syn>=5000):
+  OAKF actual operating point: DR=80.34%  flood-free FPR=0.000%
+    m      fixedDR   fixedFPR
+    1.00   89.97%    5.522%
+    1.50   84.36%    1.302%
+    1.75   81.55%    0.000%   <== matches/beats OAKF (DR>=OAKF, FPR<=OAKF)
+    2.00   76.34%    0.000%
+    3.00    0.00%    0.000%   (buggy-era k=3 corrected: M1 dead)
+  best fixed DR   = 98.80% @ m=0.5 (costs 68.4% flood-free FPR)
+  best fixed FPR  = 0.000% @ m=1.75 (gives 81.55% DR)
+  VERDICT: OAKF does NOT dominate the BOUN fixed curve. A corrected fixed
+  threshold at m=1.75 dominates OAKF's point (81.6% vs 80.3% DR, both 0% FPR).
+  Cross-dataset: m=1.75 also works on CIC (95.3% DR / 0.08% FPR). A SINGLE
+  corrected multiplier (m~1.75) matches OAKF on BOTH datasets.
+  => The strong claim "fixed cannot detect on BOUN" is REFUTED. FIXED's 0% DR
+     was an artifact of (a) the extra-mean bug and (b) the default k=3 being too
+     high for BOUN's noisy calibration sigma. OAKF's real (modest) advantage:
+     its band ~k*sqrt(R) is set by the filter's measurement-noise hyperparameter,
+     decoupled from the inflated calibration sigma, so the DEFAULT k=3 works on
+     both datasets without retuning; a fixed sigma-rule at the textbook 3-sigma
+     works on CIC but collapses to 0% on BOUN. Soften the claim to
+     "no per-dataset threshold retuning", not "detection where fixed cannot".
+
+PHASE 2 — CIC FIXED reconciliation (canonical-30: batch c00-c29 with c27 -> rerun2):
+  5s  buggy(as-run) : DR macro 95.29%+-5.03  micro 95.30% (547/574)  FPR 0/1291=0.000%
+  5s  corrected     : DR macro 95.13%+-4.95  micro 95.12% (546/574)  FPR 3/1291=0.232%
+  30s buggy/corr    : DR macro 98.33%+-6.34  micro 97.85% (91/93)    FPR 0/208=0.000%
+  Thesis FIXED=95.3% == compute_metrics.py over canonical-30, 5s, buggy(as-run),
+  macro. The audit's 92.2% wrongly included the DEGENERATE run_batch_c27 (DR 0/1,
+  only 1 attack window) instead of its rerun2 replacement -> a macro outlier
+  (SD 18%). CIC FULL=95.5% vs FIXED=95.3%: FULL beats FIXED by only +0.2pp
+  (both detect the same 547 windows) => on CIC, "fixed MATCHED full", not
+  "OAKF beats fixed".
+
+CLEANUPS (noted, not applied; paper numbers come from the re-scores above):
+  * FIXED formula one-liner: multi_window_detector_v2.py:178
+      self.threshold = self.mean + self.k * sd   ->   self.threshold = self.k * sd
+    (drop +self.mean; matches the correct |v-mean|>k*sigma band). Note: even
+    corrected, k=3 gives 0% DR on BOUN (needs m~1.75) — see Phase 1.
+  * analyzer glob fix: analyze_boun_batch.py cic_full_csvs() should exclude
+    run_cpu_full_* and run_long_5chunk_* so CIC aggregates match canonical-30
+    (fixes the earlier 95.76%/0.142% -> 95.5%/0.078%).
+==============================================================================
+
+==============================================================================
+DRIFT EXPERIMENT (synthetic/controlled; REAL signal code + REAL OAKF; k=3,Q,R,
+warmup UNCHANGED) — produced 2026-07-10.  Offline; no live runs; no thesis rewrite.
+==============================================================================
+Setup: legit source-IP count ramps over a 300s trial so the entropy baseline
+drifts 4.70 -> 8.67 bits; attacks (spoofed-source bursts, +~3-bit deviation)
+injected EARLY/MID/LATE; drift sized so LATE-legit entropy (8.67) == EARLY-attack
+entropy (8.69). Fixed threshold = corrected band |v-mean|>m*sigma frozen on the
+low-baseline calib segment, swept m=0.5..25. Isolates the entropy thresholding
+mechanism. OAKF params published/unchanged.
+
+[A] Drift magnitude: entropy 4.70->8.67 (+3.98 bits); revisit flat (2.0);
+    synack legit ~1 (stationary by construction). Stress MET.
+
+[B] Pilot GATE: PASS. OAKF detects all 3 injection groups (3/3/3), DR=100%,
+    FPR=0%; fixed(m=3) DR=100% but FPR=89.7% (every drifted-legit window false-
+    alarms). Mechanism confirmed: fixed band frozen low, drifted legit walks out
+    from under it; OAKF band tracks the rising baseline. (plot: drift_pilot.png)
+
+[C] Batch R=10 + full fixed-m sweep under drift:
+    OAKF operating point: DR=100.00%  FPR=0.00%  (spurious entropy anom 0.00%)
+    fixed curve:  m<=11 -> DR 100% / FPR 100%..24.6% (FP arm);
+                  m=12-16 -> DR 97%..66% / FPR 15%..0.5% (transition);
+                  m>=17 -> FPR 0% but DR 61%..9% (miss arm).
+    best fixed tradeoff (nearest ideal): m=13 -> DR 93% / FPR 9% (OAKF dominates
+    on BOTH axes). lowest fixed FPR while DR>=OAKF(100%) = 24.6% @ m=11.
+    KEY VERDICT: NO m has fixed DR>=OAKF AND fixed FPR<=OAKF.  OAKF DOMINATES the
+    fixed DR-FPR curve under drift => the adaptive pillar is EARNED for the
+    NON-STATIONARY regime. (Contrast: on the STATIONARY CIC/BOUN baselines a tuned
+    fixed m matches OAKF.) plots: fixed_sweep_drift.png.
+    Caveat: result is for a drift large enough that late-legit reaches early-attack
+    (per design); the qualitative FP-or-miss trap holds whenever drift >~ attack
+    deviation. Synthetic/controlled; OAKF params unchanged.
+==============================================================================
+
+==============================================================================
+LIVE DRIFT CONFIRMATION (Mininet+Ryu; unmodified detector; OAKF k=3/Q/R/warmup
+UNCHANGED; forwarding offload active; native timing) — produced 2026-07-10.
+Synthetic/controlled drift, now on LIVE traffic through the real controller.
+==============================================================================
+Setup: drift_live_gen ramps active legit source IPs 20->200 over a 480s trial
+(entropy baseline rises); spoofed-SYN bursts injected EARLY/MID/LATE with the
+spoofed-source count SCALED to the baseline (constant ~+2.5-bit signature, as
+offline). Legit calibration carries realistic per-window jitter (sigma~0.15 bits)
+so the frozen fixed threshold has a real band (a fair competitor). Entropy channel
+scored: OAKF = live logged entropy_anom (k=3); fixed = |v-mean|>m*sigma frozen on
+the low-baseline calib segment, swept m=0.5..45. Pilot GATE passed.
+
+[A] LIVE drift magnitude: source-IP entropy calib 4.12 -> late-legit 7.15
+    (+3.04 bits); early-attack 7.46; late-legit vs early-attack gap 0.31 => the
+    drift stress (late legit reaches early-attack level) is MET live.
+
+[B] Pilot gate: REPRODUCED live. OAKF detects all 3 attack groups (3/3 each) at
+    0% FPR; frozen fixed band (m=3) false-alarms on ~93% of drifted-legit windows.
+    (plot: drift_live_pilot.png — entropy rising, OAKF band tracking, fixed frozen.)
+
+[C] Batch R=5 (all runs consistent): OAKF live operating point DR=100.0%+-0.0,
+    FPR=0.0%+-0.0. Live fixed-threshold sweep under drift:
+      m<=17  -> DR 100% / FPR 99%..31%   (FP arm: frozen band crossed by drift)
+      m 18-24-> DR 98%..73% / FPR 23%..0% (transition)
+      m>=24  -> FPR 0% but DR 73%..0%     (miss arm)
+    closest fixed point to ideal: m=21 -> DR 84% / FPR 7% (OAKF dominates BOTH axes).
+    KEY VERDICT: NO fixed m has DR>=OAKF AND FPR<=OAKF => OAKF DOMINATES the LIVE
+    fixed DR-FPR curve under drift. The drift pillar is LIVE-VALIDATED, matching
+    the offline result (offline: OAKF 100%/0%, no dominating m; live: identical).
+    Controller CPU (detector ON, live drift): mean 35% / peak ~92-98%.
+    plots: fixed_sweep_drift_live.png. OAKF params unchanged; drift synthetic but
+    now realised on live traffic through Mininet+Ryu.
+==============================================================================

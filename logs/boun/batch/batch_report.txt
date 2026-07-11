@@ -1,0 +1,115 @@
+==================================================================================
+BOUN FINAL BATCH — ANALYSIS + FULL_HYST RE-SCORING
+==================================================================================
+discovered runs: FIXED_THRESHOLD=10, FULL=10, NO_DUAL_MECH=5, NO_MULTI_WINDOW=5
+
+[ SYN THRESHOLD K — per-5s-window SYN histogram, pooled over FULL runs ]
+    [     0-   500) :    80  ############################################################
+    [   500-  1000) :    20  ####################
+    [  1000-  2000) :   237  ############################################################
+    [  2000-  3000) :   427  ############################################################
+    [  3000-  5000) :    70  ############################################################
+    [  5000-  8000) :    30  ##############################
+    [  8000- 12000) :    65  ############################################################
+    [ 12000- 16000) :    92  ############################################################
+    [ 16000- 20000) :   311  ############################################################
+    [ 20000- 25000) :     0  
+    [ 25000-   inf) :     0  
+    chosen K = 5000 SYN/5s (valley between baseline <3k and flood >=16k)
+
+==================================================================================
+A. FULL_HYST vs FULL  (re-scoring only; base = M1 AND M2)
+==================================================================================
+
+  BOUN (mean±SD across FULL runs, primary labelling):
+     size   rule               DR         FPR_prim          FPR_nom
+       5s   FULL    80.34% ±2.28%     0.00% ±0.00%    17.91% ±1.69%
+       5s  HYST1    88.18% ±2.27%     0.18% ±0.56%    23.11% ±1.65%
+       5s  HYST2    92.80% ±2.67%     3.25% ±1.14%    28.30% ±1.62%
+      30s   FULL    30.00% ±2.87%       n/a   ±n/a     3.11% ±5.02%
+      30s  HYST1    52.22% ±2.87%       n/a   ±n/a    39.44% ±5.27%
+      30s  HYST2    74.44% ±2.87%       n/a   ±n/a    81.22% ±4.46%
+
+  CIC (mean±SD across 32 existing FULL run CSVs, phase labelling):
+     size   rule               DR              FPR
+       5s   FULL    95.76% ±4.50%     0.14% ±0.56%
+       5s  HYST1    95.76% ±4.50%     0.14% ±0.56%
+       5s  HYST2    95.76% ±4.50%     0.14% ±0.56%
+      30s   FULL    99.22% ±4.42%     0.00% ±0.00%
+      30s  HYST1    99.22% ±4.42%     0.00% ±0.00%
+      30s  HYST2    99.22% ±4.42%     0.00% ±0.00%
+     120s   FULL     1.56% ±8.84%     0.00% ±0.00%
+     120s  HYST1     1.56% ±8.84%     0.00% ±0.00%
+     120s  HYST2     1.56% ±8.84%     0.00% ±0.00%
+
+  KEEP/DROP VERDICT (rule: keep iff BOUN DR up AND CIC FPR not up):
+    N=1: BOUN 5s DR 80.34%->88.18% (+) ; CIC 5s FPR 0.1420%->0.1420% (unchanged)  => KEEP
+    N=2: BOUN 5s DR 80.34%->92.80% (+) ; CIC 5s FPR 0.1420%->0.1420% (unchanged)  => KEEP
+
+==================================================================================
+B. FIXED_THRESHOLD vs FULL  (adaptive verdict)
+==================================================================================
+                mode  size        DR_prim       FPR_prim        FPR_nom
+                FULL    5s         80.34%          0.00%         17.91%
+                FULL   30s         30.00%          n/a            3.11%
+     FIXED_THRESHOLD    5s          0.00%          0.00%          0.00%
+     FIXED_THRESHOLD   30s          0.00%          n/a            0.00%
+
+  Per-signal SPURIOUS anomaly rate on non-attack windows (primary-legit),
+  5s window — OAKF (FULL, live flags) vs frozen-fixed (FIXED_THRESHOLD):
+                mode    entropy    revisit     synack
+                FULL      0.36%      1.43%      0.00%
+     FIXED_THRESHOLD      0.00%      0.00%      0.00%
+
+  NOTE: FIXED_THRESHOLD's live tracker uses band |v-mean|>mean+k*sd (very
+  wide) so it never fires on BOUN (0% DR AND 0% spurious) — inert, not good.
+
+  Paired drift test (SAME k*sd band, adaptive OAKF vs frozen static),
+  logged on every FULL run, spurious rate on non-attack windows, 5s:
+        signal   OAKF(adaptive)   static(frozen)
+       entropy            0.36%            0.00%
+       revisit            1.43%            0.00%
+        synack            0.00%            1.07%
+
+==================================================================================
+C. FULL — DR/FPR (primary + nominal), mean±SD, M1/M2 rates, proc
+==================================================================================
+     size         DR_prim        FPR_prim          DR_nom         FPR_nom   M1@atk   M2@atk      proc
+       5s    80.34%±2.28%     0.00%±0.00%   100.00%±0.00%    17.91%±1.69%   95.97%   80.34%   0.153ms
+      30s    30.00%±2.87%       n/a  ±n/a   100.00%±0.00%     3.11%±5.02%   56.11%   30.00%   0.600ms
+
+==================================================================================
+D. NO_DUAL_MECH — single-signal misfire on real background (FPR)
+==================================================================================
+       5s  DR_prim= 79.94%  FPR_prim=  0.00%  FPR_nom= 18.95%
+      30s  DR_prim= 30.00%  FPR_prim=  n/a    FPR_nom=  4.22%
+
+==================================================================================
+E. NO_MULTI_WINDOW — DR/FPR (5s only)
+==================================================================================
+    5s  DR_prim= 81.82%±1.68%  FPR_prim=  0.00%  FPR_nom= 17.97%
+
+==================================================================================
+F. Controller CPU — detector ON (FULL) vs OFF (NOOP), native rate
+==================================================================================
+    detector ON  (FULL, n=10) : mean 61.4% ±0.5  peak 101.1%
+    detector OFF (NOOP, n=3) : mean 53.8% ±1.1  peak 100.9%
+    detector adds (mean)          : +7.6 pts
+
+==================================================================================
+G. Processing time (per window) + replay fidelity per run
+==================================================================================
+    FULL proc   5s: 0.153ms ± 0.008ms
+    FULL proc  30s: 0.600ms ± 0.032ms
+    replay stretch (dur/482.7s) per FULL run:
+      b_full_01: 627.9s  stretch=1.30x
+      b_full_02: 627.0s  stretch=1.30x
+      b_full_03: 629.1s  stretch=1.30x
+      b_full_04: 637.7s  stretch=1.32x
+      b_full_05: 628.6s  stretch=1.30x
+      b_full_06: 627.5s  stretch=1.30x
+      b_full_07: 627.6s  stretch=1.30x
+      b_full_08: 628.3s  stretch=1.30x
+      b_full_09: 623.5s  stretch=1.29x
+      b_full_10: 631.4s  stretch=1.31x
+    mean stretch = 1.30x ± 0.01  (native-timing adherence)
